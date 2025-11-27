@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![App Screenshot](https://via.placeholder.com/800x450.png?text=ClipSketch+AI+Dashboard)
+![App Screenshot](asset/snap.png)
 
 **将视频瞬间转化为手绘故事**  
 *Turn Video Moments into Hand-Drawn Stories*
