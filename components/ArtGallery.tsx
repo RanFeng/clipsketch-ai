@@ -126,9 +126,9 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, onClose 
             aspectRatio: "16:9",
             imageSize: "2K"
           },
-          thinkingConfig: {
-            includeThoughts: true
-          }
+          // thinkingConfig: {
+          //   ThinkingLevel: "HIGH"
+          // }
         }
       });
 
