@@ -11,6 +11,10 @@ export default function App() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
+  // Metadata states
+  const [videoTitle, setVideoTitle] = useState<string | null>(null);
+  const [videoContent, setVideoContent] = useState<string | null>(null);
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [showGallery, setShowGallery] = useState(false);
   
@@ -25,6 +29,8 @@ export default function App() {
       const url = URL.createObjectURL(videoFile);
       setVideoUrl(url);
       setVideoDuration(0); // Reset duration, let player determine it from metadata
+      setVideoTitle(videoFile.name);
+      setVideoContent(null);
       setTags([]); // Clear tags for new video
       setImportUrl(''); // Clear import url
       return () => URL.revokeObjectURL(url);
@@ -42,12 +48,14 @@ export default function App() {
     try {
       const result = await extractWebVideoUrl(importUrl);
       setVideoUrl(result.url);
-      // If the API provided a duration, store it to override browser metadata later
-      if (result.duration) {
-        setVideoDuration(result.duration);
-      } else {
-        setVideoDuration(0);
-      }
+      
+      // Store metadata
+      if (result.duration) setVideoDuration(result.duration);
+      else setVideoDuration(0);
+      
+      setVideoTitle(result.title || "Untitled Video");
+      setVideoContent(result.content || null);
+
       setTags([]);
       setImportUrl('');
     } catch (err: any) {
@@ -166,7 +174,7 @@ export default function App() {
           
           {/* File Switcher Overlay (When video is loaded) */}
           {videoUrl && (
-            <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+            <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 flex-col items-start">
                <button 
                  onClick={() => {
                    setVideoUrl(null);
@@ -179,6 +187,11 @@ export default function App() {
                  <Upload className="w-3 h-3" />
                  打开新视频
                </button>
+               {videoTitle && (
+                  <div className="bg-black/60 backdrop-blur px-3 py-1.5 rounded-lg text-xs text-slate-300 border border-slate-800 max-w-[200px] truncate">
+                    {videoTitle}
+                  </div>
+               )}
             </div>
           )}
         </div>
@@ -205,6 +218,8 @@ export default function App() {
         <ArtGallery 
           tags={tags} 
           videoUrl={videoUrl} 
+          videoTitle={videoTitle || undefined}
+          videoContent={videoContent || undefined}
           onClose={() => setShowGallery(false)} 
         />
       )}

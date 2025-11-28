@@ -38,8 +38,7 @@
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "jszip": "https://esm.run/jszip",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@latest"
+    "jszip": "https://esm.run/jszip"
   }
 }
 </script>
@@ -47,6 +46,10 @@
 </head>
   <body class="bg-slate-950 text-slate-100 antialiased h-screen overflow-hidden">
     <div id="root" class="h-full"></div>
+    <script>
+      window.va = window.va || function () { (window.va.q = window.va.q || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

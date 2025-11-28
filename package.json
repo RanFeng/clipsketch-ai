@@ -9,12 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "latest",
-    "@vercel/analytics": "^1.5.0",
-    "jszip": "latest",
-    "lucide-react": "^0.554.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "lucide-react": "^0.554.0",
+    "jszip": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
