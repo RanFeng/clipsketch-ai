@@ -7,7 +7,7 @@ export interface VideoParser {
   parse(url: string): Promise<VideoMetadata>;
 }
 
-const PROXY_BASE = 'https://corsproxy.io/?';
+const PROXY_BASE = 'https://inkmaster.ace-kid.workers.dev/';
 
 // --- Instagram Parser (Cobalt API) ---
 class InstagramParser implements VideoParser {

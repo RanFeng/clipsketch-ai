@@ -65,9 +65,9 @@ export const captureFramesAsBase64 = async (
   const isBilibiliDirect = videoSrc.includes('.bilivideo.com') || videoSrc.includes('hdslb.com');
   const isInstagramDirect = videoSrc.includes('instagram.com') || videoSrc.includes('cdninstagram.com');
   
-  if ((isBilibiliDirect || isInstagramDirect) && !videoSrc.includes('corsproxy.io')) {
+  if ((isBilibiliDirect || isInstagramDirect) && !videoSrc.includes('https://inkmaster.ace-kid.workers.dev/')) {
     // Wrap in proxy strictly for the purpose of capturing frames
-    video.src = `https://corsproxy.io/?${encodeURIComponent(videoSrc)}`;
+    video.src = `https://inkmaster.ace-kid.workers.dev/${encodeURIComponent(videoSrc)}`;
   } else {
     video.src = videoSrc;
   }
