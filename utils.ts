@@ -35,6 +35,7 @@ export const generateId = (): string => {
 
 export interface VideoMetadata {
   url: string;
+  storageKey?: string; // Standardized key for caching (e.g., domain.com/path)
   duration?: number;
   title?: string;
   content?: string;
@@ -65,9 +66,9 @@ export const captureFramesAsBase64 = async (
   const isBilibiliDirect = videoSrc.includes('.bilivideo.com') || videoSrc.includes('hdslb.com');
   const isInstagramDirect = videoSrc.includes('instagram.com') || videoSrc.includes('cdninstagram.com');
   
-  if ((isBilibiliDirect || isInstagramDirect) && !videoSrc.includes('https://inkmaster.ace-kid.workers.dev/')) {
+  if ((isBilibiliDirect || isInstagramDirect) && !videoSrc.includes('corsproxy.io')) {
     // Wrap in proxy strictly for the purpose of capturing frames
-    video.src = `https://inkmaster.ace-kid.workers.dev/${encodeURIComponent(videoSrc)}`;
+    video.src = `https://corsproxy.io/?${encodeURIComponent(videoSrc)}`;
   } else {
     video.src = videoSrc;
   }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { VideoPlayer } from './components/VideoPlayer';
 import { TagList } from './components/TagList';
@@ -6,10 +7,13 @@ import { Tag } from './types';
 import { generateId, extractWebVideoUrl } from './utils';
 import { Upload, Film, Link as LinkIcon, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from './components/Button';
+import { StorageService } from './services/storage';
 
 export default function App() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [storageKey, setStorageKey] = useState<string | null>(null);
+
   const [videoDuration, setVideoDuration] = useState<number>(0);
   // Metadata states
   const [videoTitle, setVideoTitle] = useState<string | null>(null);
@@ -23,19 +27,51 @@ export default function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Tag persistence state
+  const [hasLoadedTags, setHasLoadedTags] = useState(false);
+
   // Cleanup Object URL when file changes
   useEffect(() => {
     if (videoFile) {
       const url = URL.createObjectURL(videoFile);
       setVideoUrl(url);
+      setStorageKey(`local-${videoFile.name}-${videoFile.size}`);
+      
       setVideoDuration(0); // Reset duration, let player determine it from metadata
       setVideoTitle(videoFile.name);
       setVideoContent(null);
       setTags([]); // Clear tags for new video
+      setHasLoadedTags(true); // Local files logic
       setImportUrl(''); // Clear import url
       return () => URL.revokeObjectURL(url);
     }
   }, [videoFile]);
+
+  // Load Tags from Storage when StorageKey changes
+  useEffect(() => {
+    if (storageKey) {
+      setHasLoadedTags(false);
+      StorageService.getProject(storageKey).then((project) => {
+        if (project && project.tags && project.tags.length > 0) {
+          setTags(project.tags);
+        } else {
+          setTags([]);
+        }
+        setHasLoadedTags(true);
+      });
+    } else if (!videoFile) {
+      // If cleared
+      setHasLoadedTags(true);
+    }
+  }, [storageKey, videoFile]);
+
+  // Auto-save Tags to Storage
+  useEffect(() => {
+    if (hasLoadedTags && storageKey) {
+      // Debounce could be added here if needed, but for now direct update is fine
+      StorageService.updateProject(storageKey, { tags });
+    }
+  }, [tags, hasLoadedTags, storageKey]);
 
   const handleUrlImport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +84,8 @@ export default function App() {
     try {
       const result = await extractWebVideoUrl(importUrl);
       setVideoUrl(result.url);
+      // Use the canonical key from metadata, or fallback to url if missing
+      setStorageKey(result.storageKey || result.url);
       
       // Store metadata
       if (result.duration) setVideoDuration(result.duration);
@@ -58,6 +96,7 @@ export default function App() {
 
       setTags([]);
       setImportUrl('');
+      // hasLoadedTags will be handled by the useEffect on storageKey
     } catch (err: any) {
       setImportError(err.message || '导入视频失败');
     } finally {
@@ -178,6 +217,7 @@ export default function App() {
                <button 
                  onClick={() => {
                    setVideoUrl(null);
+                   setStorageKey(null);
                    setVideoFile(null);
                    setImportUrl('');
                    setVideoDuration(0);
@@ -214,10 +254,11 @@ export default function App() {
       </div>
 
       {/* Art Gallery Overlay */}
-      {showGallery && videoUrl && (
+      {showGallery && videoUrl && storageKey && (
         <ArtGallery 
           tags={tags} 
-          videoUrl={videoUrl} 
+          videoUrl={videoUrl}
+          projectId={storageKey}
           videoTitle={videoTitle || undefined}
           videoContent={videoContent || undefined}
           onClose={() => setShowGallery(false)} 

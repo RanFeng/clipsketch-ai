@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { 
   ChevronLeft, Wand2, Settings, 
-  Box, BrainCircuit, Clipboard
+  Box, BrainCircuit, Clipboard, Layers
 } from 'lucide-react';
 import { Button } from '../Button';
 import { ProviderType } from '../../services/llm';
@@ -19,6 +19,8 @@ interface HeaderProps {
   setBaseUrl: (url: string) => void;
   useThinking: boolean;
   setUseThinking: (use: boolean) => void;
+  useBatch: boolean;
+  setUseBatch: (use: boolean) => void;
   apiKey: string;
   setApiKey: (key: string) => void;
 }
@@ -26,7 +28,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   onClose, targetPlatform, showSettings, setShowSettings,
   provider, setProvider, baseUrl, setBaseUrl, useThinking, setUseThinking,
-  apiKey, setApiKey
+  useBatch, setUseBatch, apiKey, setApiKey
 }) => {
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </div>
             
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
                   <BrainCircuit className="w-3 h-3 text-indigo-400" />
@@ -134,6 +136,25 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useThinking ? 'translate-x-5' : 'translate-x-0'}`}></div>
               </div>
             </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-indigo-400" />
+                  批量生成模式 (Batch)
+                </span>
+                <span className="text-[10px] text-slate-500 max-w-[180px] leading-tight mt-0.5">
+                  启用后使用 Batch API 节省成本 (较慢)。<br/>关闭则并发请求 (较快，消耗 Quota)。
+                </span>
+              </div>
+              <div 
+                className={`w-10 h-5 rounded-full cursor-pointer relative transition-colors shrink-0 ${useBatch ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                onClick={() => setUseBatch(!useBatch)}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useBatch ? 'translate-x-5' : 'translate-x-0'}`}></div>
+              </div>
+            </div>
+
           </div>
         )}
 

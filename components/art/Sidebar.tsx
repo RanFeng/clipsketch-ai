@@ -1,9 +1,8 @@
 
-
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Loader2, RefreshCw, ListChecks, 
-  Plus, Grid3X3, Check, Copy, Wand2, Sparkles, ChevronDown
+  Plus, Grid3X3, Check, Copy, Wand2, Sparkles, ChevronDown, DownloadCloud, PenTool, LayoutTemplate
 } from 'lucide-react';
 import { Button } from '../Button';
 import { WorkflowStep } from './types';
@@ -28,6 +27,7 @@ interface SidebarProps {
   onAnalyzeSteps: () => void;
   onGenerateBase: () => void;
   onIntegrateCharacter: () => void;
+  onSkipCharacter: () => void;
   onStartRefine: () => void;
   
   stepDescriptions: string[];
@@ -52,6 +52,22 @@ interface SidebarProps {
   sourceFrames: FrameData[];
   subPanels: SubPanel[];
   defaultPrompt: string;
+  
+  // Batch processing props
+  batchJobId?: string | null;
+  onRefreshBatch?: () => void;
+  onRecoverBatch?: (jobId: string) => void;
+
+  // Caption Selection & Cover Generation
+  selectedCaption: CaptionOption | null;
+  onSelectCaption: (caption: CaptionOption) => void;
+  onUpdateSelectedCaption: (title: string, content: string) => void;
+  
+  isGeneratingCover: boolean;
+  onGenerateCover: () => void;
+  coverImage: string | null;
+
+  useBatch: boolean;
 }
 
 interface StepItemProps {
@@ -99,6 +115,7 @@ const StepItem: React.FC<StepItemProps> = ({ step, title, isActive, isCompleted,
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [recoverId, setRecoverId] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     props.onAvatarUpload(e);
@@ -181,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             <textarea
               value={props.customPrompt}
               onChange={(e) => props.setCustomPrompt(e.target.value)}
-              className="w-full h-14 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none placeholder-slate-700 custom-scrollbar mb-3"
+              className="w-full h-24 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none placeholder-slate-700 custom-scrollbar mb-3"
               disabled={props.isGeneratingImage || props.isAnalyzingSteps}
             />
 
@@ -219,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               step={3} 
               title="角色融合 (可选)" 
               isActive={props.viewStep === 3}
-              isCompleted={props.workflowStep === 'final_generated' || props.workflowStep === 'refine_mode'}
+              isCompleted={props.workflowStep === 'final_generated' || props.workflowStep === 'refine_mode' || props.workflowStep === 'cover_mode'}
               isDisabled={!props.generatedArt}
               onToggle={() => props.generatedArt && props.onStepChange(3)}
             >
@@ -265,19 +282,31 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   </div>
                 )}
 
-                <Button 
-                  onClick={props.onIntegrateCharacter}
-                  disabled={props.isGeneratingImage || !props.avatarImage}
-                  size="sm"
-                  className={`w-full ${!props.avatarImage ? 'opacity-50 cursor-not-allowed bg-slate-800' : 'bg-pink-600 hover:bg-pink-500 text-white'}`}
-                >
-                    {props.isGeneratingImage && props.avatarImage ? (
-                      <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5 mr-2" />
-                    )}
-                    {props.workflowStep === 'final_generated' ? "重新融合" : "开始融合"}
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                      onClick={props.onIntegrateCharacter}
+                      disabled={props.isGeneratingImage || !props.avatarImage}
+                      size="sm"
+                      className={`flex-1 ${!props.avatarImage ? 'opacity-50 cursor-not-allowed bg-slate-800' : 'bg-pink-600 hover:bg-pink-500 text-white'}`}
+                    >
+                        {props.isGeneratingImage && props.avatarImage ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5 mr-2" />
+                        )}
+                        {props.workflowStep === 'final_generated' || props.workflowStep === 'refine_mode' || props.workflowStep === 'cover_mode' ? "重新融合" : "开始融合"}
+                    </Button>
+                    
+                    <Button
+                        onClick={props.onSkipCharacter}
+                        disabled={props.isGeneratingImage}
+                        size="sm"
+                        variant="secondary"
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700"
+                    >
+                        {props.workflowStep === 'final_generated' || props.workflowStep === 'refine_mode' || props.workflowStep === 'cover_mode' ? "恢复原图" : "跳过"}
+                    </Button>
+                </div>
               </div>
             </StepItem>
 
@@ -312,6 +341,47 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   <Grid3X3 className="w-3.5 h-3.5 mr-2" />
                   开启精修模式
                 </Button>
+
+                {/* Batch Status / Recovery Section - Only visible if useBatch is enabled */}
+                {props.useBatch && (
+                    props.batchJobId ? (
+                       <div className="pt-2 border-t border-slate-800 mt-2">
+                          <div className="text-[10px] text-slate-500 mb-1 font-mono break-all leading-tight">
+                             ID: {props.batchJobId.slice(0, 8)}...
+                          </div>
+                          <Button 
+                             onClick={props.onRefreshBatch}
+                             size="sm"
+                             className="w-full bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-800/50 hover:border-indigo-700 text-xs h-8"
+                          >
+                             <RefreshCw className="w-3 h-3 mr-1.5" />
+                             刷新进度 / 加载图片
+                          </Button>
+                       </div>
+                    ) : (
+                       <div className="pt-2 border-t border-slate-800 mt-2">
+                           <label className="text-[10px] text-slate-500 block mb-1">恢复任务 (可选)</label>
+                           <div className="flex gap-2">
+                              <input 
+                                type="text" 
+                                placeholder="输入 Job ID"
+                                value={recoverId}
+                                onChange={(e) => setRecoverId(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded px-2 text-[10px] text-white w-full h-7 focus:outline-none focus:border-indigo-500"
+                              />
+                              <Button
+                                 onClick={() => props.onRecoverBatch?.(recoverId)}
+                                 disabled={!recoverId.trim()}
+                                 size="sm"
+                                 className="bg-slate-800 hover:bg-slate-700 text-slate-300 h-7 px-2"
+                                 title="恢复任务"
+                              >
+                                 <DownloadCloud className="w-3.5 h-3.5" />
+                              </Button>
+                           </div>
+                       </div>
+                    )
+                )}
               </div>
             </StepItem>
 
@@ -320,7 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               step={5} 
               title="社交文案" 
               isActive={props.viewStep === 5}
-              isCompleted={props.captionOptions.length > 0}
+              isCompleted={!!props.selectedCaption}
               isDisabled={!props.generatedArt}
               onToggle={() => props.generatedArt && props.onStepChange(5)}
             >
@@ -334,33 +404,98 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 {props.captionOptions.length > 0 ? "重新生成文案" : "生成匹配文案"}
               </Button>
 
-              {props.captionOptions.length > 0 && (
+              {props.captionOptions.length > 0 && !props.selectedCaption && (
                 <div className="space-y-3">
+                  <p className="text-[10px] text-slate-500">点击选择一个文案进行编辑：</p>
                   {props.captionOptions.map((opt, idx) => (
-                    <div key={idx} className="bg-slate-950 border border-slate-800 rounded-lg p-2 hover:border-slate-600 transition-colors group">
+                    <div 
+                      key={idx} 
+                      onClick={() => props.onSelectCaption(opt)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg p-2 hover:border-indigo-500/50 cursor-pointer transition-colors group"
+                    >
                       <div className="flex justify-between items-start mb-1 gap-2">
-                        <span className="text-[10px] font-bold text-slate-400 line-clamp-1 flex-1" title={opt.title}>
+                        <span className="text-[10px] font-bold text-slate-400 line-clamp-1 flex-1 group-hover:text-indigo-400" title={opt.title}>
                           {opt.title}
                         </span>
-                        <button 
-                          onClick={() => props.onCopyCaption(`${opt.title}\n\n${opt.content}`, idx)}
-                          className={`shrink-0 p-1 rounded transition-all ${
-                            props.copiedIndex === idx 
-                            ? "text-green-400" 
-                            : "text-slate-500 hover:text-white"
-                          }`}
-                        >
-                          {props.copiedIndex === idx ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                        </button>
                       </div>
-                      <div className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">
+                      <div className="text-[10px] text-slate-500 leading-relaxed whitespace-pre-wrap max-h-20 overflow-hidden line-clamp-3">
                         {opt.content}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
+
+              {/* Selected Caption Editing Mode */}
+              {props.selectedCaption && (
+                 <div className="space-y-2 animate-in fade-in slide-in-from-right-4">
+                     <div className="flex items-center justify-between">
+                        <span className="text-xs text-indigo-400 flex items-center gap-1">
+                           <PenTool className="w-3 h-3" /> 编辑选中与标题
+                        </span>
+                        <button 
+                           onClick={() => props.onSelectCaption(null as any)} // Hack to clear selection
+                           className="text-[10px] text-slate-500 hover:text-white underline"
+                        >
+                           重选
+                        </button>
+                     </div>
+                     
+                     <input
+                        type="text"
+                        value={props.selectedCaption.title}
+                        onChange={(e) => props.onUpdateSelectedCaption(e.target.value, props.selectedCaption!.content)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        placeholder="标题..."
+                     />
+                     <textarea
+                        value={props.selectedCaption.content}
+                        onChange={(e) => props.onUpdateSelectedCaption(props.selectedCaption!.title, e.target.value)}
+                        className="w-full h-32 bg-slate-950 border border-slate-800 rounded p-2 text-[10px] text-slate-300 focus:outline-none focus:border-indigo-500 custom-scrollbar resize-none leading-relaxed"
+                        placeholder="文案内容..."
+                     />
+                     <Button 
+                       onClick={() => props.onCopyCaption(`${props.selectedCaption!.title}\n\n${props.selectedCaption!.content}`, -1)}
+                       size="sm"
+                       className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
+                     >
+                        {props.copiedIndex === -1 ? <Check className="w-3.5 h-3.5 mr-2" /> : <Copy className="w-3.5 h-3.5 mr-2" />}
+                        复制最终文案
+                     </Button>
+                 </div>
+              )}
             </StepItem>
+
+            {/* Step 6: Cover Generation - ONLY APPEARS IF Caption Selected */}
+            {props.selectedCaption && (
+                <StepItem 
+                    step={6} 
+                    title="生成封面" 
+                    isActive={props.viewStep === 6}
+                    isCompleted={!!props.coverImage}
+                    isDisabled={false}
+                    onToggle={() => props.onStepChange(6)}
+                >
+                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                        基于选中的文案标题和原始画面，生成高品质竖屏封面。
+                    </p>
+                    <div className="bg-slate-950/50 p-2 rounded border border-slate-800 mb-3">
+                         <span className="text-[10px] text-slate-500 block mb-0.5">当前标题:</span>
+                         <span className="text-xs text-indigo-300 font-medium line-clamp-1">{props.selectedCaption.title}</span>
+                    </div>
+
+                    <Button 
+                        onClick={props.onGenerateCover}
+                        isLoading={props.isGeneratingCover}
+                        disabled={props.isGeneratingCover}
+                        size="sm"
+                        className={`w-full ${props.coverImage ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white border-none'}`}
+                    >
+                        {props.coverImage ? "重新生成封面" : "生成封面特效"}
+                        {!props.isGeneratingCover && <LayoutTemplate className="w-3.5 h-3.5 ml-2" />}
+                    </Button>
+                </StepItem>
+            )}
           </>
         )}
 
