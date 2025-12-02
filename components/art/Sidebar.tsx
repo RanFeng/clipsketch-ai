@@ -31,6 +31,7 @@ interface SidebarProps {
   onStartRefine: () => void;
   
   stepDescriptions: string[];
+  onUpdateStepDescription: (index: number, text: string) => void; // New Prop
   
   avatarImage: string | null;
   onAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;

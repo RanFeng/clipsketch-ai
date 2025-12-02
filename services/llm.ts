@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI } from "@google/genai";
 
 export interface LLMMessage {
@@ -30,14 +29,9 @@ export interface BatchStatusResponse {
 
 export interface LLMProvider {
   generateContent(model: string, messages: LLMMessage[], config?: LLMConfig): Promise<LLMResponse>;
-  /**
-   * Starts a batch job and returns the Job ID.
-   */
   generateContentBatch(model: string, batchMessages: LLMMessage[][], config?: LLMConfig): Promise<string>;
-  /**
-   * Checks the status of a batch job.
-   */
   getBatchStatus(jobId: string): Promise<BatchStatusResponse>;
+  testConnection(): Promise<boolean>;
 }
 
 export type ProviderType = 'google' | 'openai';
@@ -46,10 +40,31 @@ export class GoogleProvider implements LLMProvider {
   private ai: GoogleGenAI;
 
   constructor(private apiKey: string, private baseUrl: string) {
-    // Note: The SDK instance currently uses the default transport/baseUrl. 
-    // If a custom baseUrl is needed for all calls, a custom transport would be required, 
-    // but for the manual fetch in getBatchStatus we use this.baseUrl explicitly.
-    this.ai = new GoogleGenAI({ apiKey: this.apiKey });
+    const options: any = { apiKey: this.apiKey };
+    
+    if (this.baseUrl && this.baseUrl.trim()) {
+        let url = this.baseUrl.trim();
+        // Remove trailing slash
+        while (url.endsWith('/')) url = url.slice(0, -1);
+        
+        // Remove specific version suffixes to ensure SDK appends them correctly
+        // The SDK appends /v1beta/models/...
+        // If user provided .../v1beta, we strip it.
+        if (url.endsWith('/v1beta')) {
+            url = url.slice(0, -1 * '/v1beta'.length);
+        } else if (url.endsWith('/v1')) {
+            url = url.slice(0, -1 * '/v1'.length);
+        }
+        
+        // Clean trailing slash again if needed
+        while (url.endsWith('/')) url = url.slice(0, -1);
+
+        options.httpOptions = {
+          baseUrl: url
+        };
+    }
+
+    this.ai = new GoogleGenAI(options);
   }
 
   private resolveImage(url: string): string | Promise<string> {
@@ -118,6 +133,19 @@ export class GoogleProvider implements LLMProvider {
     return generationConfig;
   }
 
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: 'Ping' }] },
+      });
+      return true;
+    } catch (e) {
+      console.error("Connection test failed:", e);
+      throw e;
+    }
+  }
+
   async generateContent(model: string, messages: LLMMessage[], config: LLMConfig = {}): Promise<LLMResponse> {
     const { systemInstruction, contents } = await this.prepareContents(messages);
     
@@ -136,10 +164,7 @@ export class GoogleProvider implements LLMProvider {
     };
   }
 
-  // Implementation using ai.batches.create with robust file handling
   async generateContentBatch(model: string, batchMessages: LLMMessage[][], config: LLMConfig = {}): Promise<string> {
-    // 1. Prepare requests in JSONL format for the Batch API
-    // We map each set of messages to a GenerateContentRequest structure
     const requests = await Promise.all(batchMessages.map(async (msgs, index) => {
       const { systemInstruction, contents } = await this.prepareContents(msgs);
       
@@ -147,8 +172,6 @@ export class GoogleProvider implements LLMProvider {
         custom_id: `req-${index}`,
         method: 'generateContent',
         request: {
-          // Model is specified in the batch job creation, usually not required here for homogeneous batches,
-          // but including contents and config is essential.
           contents,
           systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
           generationConfig: this.mapConfig(config)
@@ -160,7 +183,6 @@ export class GoogleProvider implements LLMProvider {
     const jsonlContent = requests.join('\n');
     const fileBlob = new Blob([jsonlContent], { type: 'text/plain' });
 
-    // 2. Upload the JSONL file
     const uploadResult = await this.ai.files.upload({
       file: fileBlob,
       config: { 
@@ -168,8 +190,6 @@ export class GoogleProvider implements LLMProvider {
       }
     });
 
-    // 3. Poll for File to be ACTIVE
-    // The Batch API requires the file to be in ACTIVE state before use.
     let file = await this.ai.files.get({ name: uploadResult.name });
     let attempts = 0;
     while (file.state === 'PROCESSING') {
@@ -183,14 +203,13 @@ export class GoogleProvider implements LLMProvider {
         throw new Error(`File upload failed. Expected ACTIVE state, got: ${file.state}`);
     }
 
-    // 4. Create the Batch Job
     const batchResponse = await this.ai.batches.create({
       model: model,
-      src: file.name, // Use the resource name from the active file
+      src: file.name,
       config: {}
     });
 
-    return batchResponse.name; // This is the Job ID (resource name)
+    return batchResponse.name;
   }
 
   async getBatchStatus(jobId: string): Promise<BatchStatusResponse> {
@@ -202,18 +221,18 @@ export class GoogleProvider implements LLMProvider {
       const failedStates = new Set(['JOB_STATE_FAILED', 'FAILED', 'JOB_STATE_CANCELLED', 'CANCELLED', 'JOB_STATE_EXPIRED', 'EXPIRED']);
 
       if (completedStates.has(state)) {
-          console.log(`Job finished with state: ${state}`);
-          
-          // Try to get filename from dest (new structure) or outputFile (old structure)
           const outputFileName = (batch as any).dest?.fileName || (batch as any).outputFile;
           
           if (outputFileName) {
-              console.log(`Downloading results from: ${outputFileName}`);
-              
               try {
-                  // Use manual fetch because SDK's files.download() is typed for Node.js (requires downloadPath)
-                  const cleanBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-                  const url = `${cleanBaseUrl}/${outputFileName}?alt=media&key=${this.apiKey}`;
+                  const defaultBase = this.baseUrl ? this.baseUrl : 'https://generativelanguage.googleapis.com';
+                  // Clean baseurl to remove trailing slash if any
+                  const cleanBase = defaultBase.endsWith('/') ? defaultBase.slice(0, -1) : defaultBase;
+                  // Append version if missing? The SDK usually constructs endpoint.
+                  // For file download, we assume /v1beta relative to the root base.
+                  // Note: If user customized baseUrl, we assume it points to the API root.
+                  
+                  const url = `${cleanBase}/v1beta/${outputFileName}?alt=media&key=${this.apiKey}`;
                   
                   const response = await fetch(url);
                   if (!response.ok) {
@@ -221,20 +240,17 @@ export class GoogleProvider implements LLMProvider {
                   }
                   const fileContent = await response.text();
 
-                  // Parse lines (JSONL)
                   const parsedItems = fileContent.split('\n')
                       .filter(line => line.trim())
                       .map(line => {
                           try {
                               return JSON.parse(line);
                           } catch (e) {
-                              console.warn("Failed to parse result line:", line);
                               return null;
                           }
                       })
                       .filter(item => item !== null);
                   
-                  // Sort by custom_id to ensure order matches input (req-0, req-1...)
                   parsedItems.sort((a, b) => {
                       const idA = a.custom_id || a.key || '';
                       const idB = b.custom_id || b.key || '';
@@ -273,9 +289,6 @@ export class GoogleProvider implements LLMProvider {
                   return { status: 'failed', error: downloadError.message };
               }
           } else {
-               // Batch succeeded but there is no output file (maybe no inputs? or unexpected API behavior).
-               // We should return completed with empty results so the UI can clear loading state.
-               console.warn("Batch succeeded but no output file found.");
                return { status: 'completed', results: [], error: "Batch succeeded but no output file reference found." };
           }
       } else if (failedStates.has(state)) {
@@ -306,15 +319,30 @@ export class GoogleProvider implements LLMProvider {
 }
 
 export class OpenAIProvider implements LLMProvider {
-  // In-memory storage for simulated batch jobs (since we are just wrapping parallel requests)
   private static jobs = new Map<string, Promise<LLMResponse[]>>();
 
   constructor(private apiKey: string, private baseUrl: string) {}
 
   private getEndpoint(): string {
     let endpoint = this.baseUrl.trim() || "https://api.openai.com/v1";
-    if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
+    while (endpoint.endsWith('/')) {
+        endpoint = endpoint.slice(0, -1);
+    }
     return endpoint;
+  }
+
+  async testConnection(): Promise<boolean> {
+      try {
+          const url = `${this.getEndpoint()}/models`;
+          const response = await fetch(url, {
+              headers: { 'Authorization': `Bearer ${this.apiKey}` }
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return true;
+      } catch (e) {
+          console.error("Connection test failed:", e);
+          throw e;
+      }
   }
 
   async generateContent(model: string, messages: LLMMessage[], config: LLMConfig = {}): Promise<LLMResponse> {
@@ -325,15 +353,11 @@ export class OpenAIProvider implements LLMProvider {
     }
   }
 
-  // Wrapper for consistency: returns a Job ID
   async generateContentBatch(model: string, batchMessages: LLMMessage[][], config: LLMConfig = {}): Promise<string> {
     const jobId = `job_openai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Start parallel execution immediately
     const promise = Promise.all(
         batchMessages.map(messages => this.generateContent(model, messages, config))
     );
-    
     OpenAIProvider.jobs.set(jobId, promise);
     return jobId;
   }
@@ -344,29 +368,6 @@ export class OpenAIProvider implements LLMProvider {
         return { status: 'failed', error: "Job not found" };
     }
 
-    // Check if promise is settled (simulated)
-    // We use a trick to check promise status without awaiting if possible, 
-    // but here we simply return completed if the promise resolves fast, or manage state.
-    // For simplicity in this mock, we assume 'completed' if we can await it, or maybe checking a separate status map would be better.
-    // However, given the app flow, we can just await it. If it's pending, this will block? 
-    // Ideally we shouldn't block. 
-    // Proper simulation:
-    const isPending = await Promise.race([jobPromise.then(() => false), Promise.resolve(true).then(() => new Promise(r => setTimeout(() => r(true), 0)))]);
-    
-    if (isPending === true) {
-        // This is a naive check. For real OpenAI batch we would call their API.
-        // For this shim, we can just return completed and let the caller await the results if they want, 
-        // OR we just return the results directly since the previous implementation was doing Promise.all
-        // Let's just return the results if ready.
-        try {
-            const results = await jobPromise;
-            return { status: 'completed', results };
-        } catch (e: any) {
-             return { status: 'failed', error: e.message };
-        }
-    }
-    
-    // Fallback
     try {
         const results = await jobPromise;
         return { status: 'completed', results };

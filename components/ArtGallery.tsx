@@ -342,6 +342,18 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, projectI
     setError(err.message || "发生未知错误。");
   };
 
+  const handleStepDescriptionChange = (index: number, text: string) => {
+    setStepDescriptions(prev => {
+      const next = [...prev];
+      // If the array is too short, fill it
+      while (next.length <= index) {
+        next.push('');
+      }
+      next[index] = text;
+      return next;
+    });
+  };
+
   // Step 1: Analyze Frames
   const handleAnalyzeSteps = async () => {
     if (sourceFrames.length === 0 || !activeStrategy) return;
@@ -372,7 +384,8 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, projectI
         provider
       );
       setStepDescriptions(steps);
-      setViewStep(2);
+      // Don't auto-advance to step 2 view, let user stay on step 1 to edit text
+      setViewStep(1); 
     } catch (err: any) {
       handleError(err);
     } finally {
@@ -734,13 +747,27 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, projectI
   const renderRightStage = () => {
     switch (viewStep) {
       case 1:
-        return <Step1Input isGenerating={isAnalyzingSteps} frames={sourceFrames} />;
+        return (
+          <Step1Input 
+            isGenerating={isAnalyzingSteps} 
+            frames={sourceFrames} 
+            stepDescriptions={stepDescriptions}
+            onUpdateStepDescription={handleStepDescriptionChange}
+          />
+        );
       
       case 2:
         // Step 2: Base Generation
         // If not started (no baseArt and not generating), show Step 1 result (Frames)
         if (!baseArt && !isGeneratingImage) {
-           return <Step1Input isGenerating={false} frames={sourceFrames} />;
+           return (
+            <Step1Input 
+              isGenerating={false} 
+              frames={sourceFrames} 
+              stepDescriptions={stepDescriptions}
+              onUpdateStepDescription={handleStepDescriptionChange}
+            />
+          );
         }
         return <Step2Base imageSrc={baseArt} isGenerating={isGeneratingImage} />;
 
@@ -786,7 +813,14 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, projectI
         );
 
       default:
-        return <Step1Input isGenerating={false} frames={sourceFrames} />;
+        return (
+          <Step1Input 
+            isGenerating={false} 
+            frames={sourceFrames} 
+            stepDescriptions={stepDescriptions}
+            onUpdateStepDescription={handleStepDescriptionChange}
+          />
+        );
     }
   };
 
@@ -922,6 +956,9 @@ export const ArtGallery: React.FC<ArtGalleryProps> = ({ tags, videoUrl, projectI
           coverImage={coverImage}
           
           useBatch={useBatch}
+
+          // Step Description Editing
+          onUpdateStepDescription={handleStepDescriptionChange}
         />
 
         {/* Right Stage: Result based on View Step */}

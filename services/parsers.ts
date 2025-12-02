@@ -7,7 +7,7 @@ export interface VideoParser {
   parse(url: string): Promise<VideoMetadata>;
 }
 
-const PROXY_BASE = 'https://inkmaster.ace-kid.workers.dev/';
+const PROXY_BASE = 'https://cros.alphaxiv.cn/';
 
 /**
  * Generates a normalized storage key from the source URL.
@@ -42,6 +42,104 @@ function generateStorageKey(url: string): string {
   }
 }
 
+// --- Xiaohongshu Parser ---
+class XiaohongshuParser implements VideoParser {
+  name = 'Xiaohongshu';
+
+  canHandle(url: string): boolean {
+    return url.includes('xiaohongshu.com') || url.includes('xhslink.com');
+  }
+
+  async parse(url: string): Promise<VideoMetadata> {
+    const proxyUrl = `${PROXY_BASE}${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`Failed to fetch XHS page: ${response.status}`);
+    
+    const html = await response.text();
+    const result: VideoMetadata = { url: '' };
+
+    // Method 1: Try to parse window.__INITIAL_STATE__
+    try {
+        const stateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{.+?\});/s) || 
+                           html.match(/<script>window\.__INITIAL_STATE__=({.+?})<\/script>/);
+
+        if (stateMatch && stateMatch[1]) {
+            let jsonStr = stateMatch[1];
+            // XHS state often contains 'undefined' which is invalid JSON. Replace with null.
+            jsonStr = jsonStr.replace(/:\s*undefined/g, ':null');
+            
+            const state = JSON.parse(jsonStr);
+            
+            // Navigate the state tree
+            // Structure: state.note.noteDetailMap[firstNoteId].note
+            const noteData = state.note || {};
+            const firstId = noteData.firstNoteId;
+            const noteDetail = noteData.noteDetailMap?.[firstId]?.note || noteData.note;
+
+            if (noteDetail) {
+                result.title = noteDetail.title;
+                result.content = noteDetail.desc;
+                
+                // Video URL
+                if (noteDetail.video) {
+                    // Try masterUrl first
+                    if (noteDetail.video.masterUrl) {
+                        result.url = noteDetail.video.masterUrl;
+                    } 
+                    // Fallback to media.stream for some versions
+                    else if (noteDetail.video.media?.stream?.h264?.[0]?.masterUrl) {
+                        result.url = noteDetail.video.media.stream.h264[0].masterUrl;
+                    }
+                    // Fallback to consumer object
+                    else if (noteDetail.video.consumer?.originVideoKey) {
+                         // Construct url if only key is present (less common now, usually masterUrl exists)
+                         result.url = `https://sns-video-bd.xhscdn.com/${noteDetail.video.consumer.originVideoKey}`;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("XHS JSON Parse failed, falling back to Regex", e);
+    }
+
+    // Method 2: Regex Fallback (if JSON failed or didn't contain url)
+    if (!result.url) {
+        // Video URL
+        const xhsVideoMatch = html.match(/<meta (?:name|property)="og:video" content="([^"]+)"/i);
+        if (xhsVideoMatch && xhsVideoMatch[1]) {
+            result.url = xhsVideoMatch[1];
+        } else {
+             const xhsJsonMatch = html.match(/"masterUrl":"([^"]+)"/);
+             if (xhsJsonMatch && xhsJsonMatch[1]) {
+                result.url = xhsJsonMatch[1].replace(/\\u002F/g, "/").replace(/\\/g, "");
+             }
+        }
+    }
+
+    // Title/Desc Meta Fallback if JSON didn't populate them
+    if (!result.title) {
+         const titleMatch = html.match(/<meta[^>]+(?:name|property)=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+         if (titleMatch && titleMatch[1]) result.title = titleMatch[1];
+    }
+
+    if (!result.content) {
+        const descMatch = html.match(/<meta[^>]+(?:name|property)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i);
+        if (descMatch && descMatch[1]) result.content = descMatch[1];
+    }
+    
+    // Ensure URL is HTTPS
+    if (result.url && result.url.startsWith('http:')) {
+        result.url = result.url.replace('http:', 'https:');
+    }
+
+    if (!result.url) {
+        throw new Error("Could not find video URL in Xiaohongshu page");
+    }
+
+    return result;
+  }
+}
+
 // --- Instagram Parser (Cobalt API) ---
 class InstagramParser implements VideoParser {
   name = 'Instagram';
@@ -53,8 +151,6 @@ class InstagramParser implements VideoParser {
   async parse(url: string): Promise<VideoMetadata> {
     console.log(`Instagram: Parsing via Cobalt API...`);
     
-    // Cobalt API often changes or requires specific headers, 
-    // keeping the logic from original utils.ts
     const response = await fetch('https://api.cobalt.tools/api/json', {
       method: 'POST',
       headers: {
@@ -157,9 +253,7 @@ class GenericParser implements VideoParser {
     // 1. Meta Tag Extraction (Robust Regex)
     
     // Title
-    // Try property="og:title" or name="og:title"
     let titleMatch = html.match(/<meta[^>]+(?:name|property)=["']og:title["'][^>]+content=["']([^"']+)["']/i);
-    // Try content="..." first
     if (!titleMatch) {
        titleMatch = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']og:title["']/i);
     }
@@ -167,7 +261,6 @@ class GenericParser implements VideoParser {
     if (titleMatch && titleMatch[1]) {
         result.title = titleMatch[1];
     } else {
-        // Fallback to <title> tag
         const titleTag = html.match(/<title>([^<]+)<\/title>/i);
         if (titleTag && titleTag[1]) result.title = titleTag[1];
     }
@@ -179,40 +272,18 @@ class GenericParser implements VideoParser {
     }
     if (descMatch && descMatch[1]) result.content = descMatch[1];
 
-    // 2. XHS Specific JSON Logic
-    if (url.includes('xiaohongshu.com') || url.includes('xhslink.com')) {
-       // Note: We intentionally DO NOT overwrite title from JSON regex here.
-       // The regex /"title":"..."/ is too broad and often matches unrelated keys in XHS minified code.
-       // Meta tags are reliable enough for XHS titles.
-       
-       // Only try to fetch desc from JSON if meta tag failed
-       if (!result.content) {
-           const jsonDescMatch = html.match(/"desc":"((?:[^"\\]|\\.)*)"/);
-           if (jsonDescMatch && jsonDescMatch[1]) {
-              try { result.content = JSON.parse(`"${jsonDescMatch[1]}"`); } catch(e) {}
-           }
-       }
-    }
-
-    // 3. Video URL Extraction
-    // XHS
-    const xhsVideoMatch = html.match(/<meta (?:name|property)="og:video" content="([^"]+)"/i);
-    if (xhsVideoMatch && xhsVideoMatch[1]) {
-      result.url = xhsVideoMatch[1];
-      return result;
-    }
-    
-    const xhsJsonMatch = html.match(/"masterUrl":"([^"]+)"/);
-    if (xhsJsonMatch && xhsJsonMatch[1]) {
-      result.url = xhsJsonMatch[1].replace(/\\u002F/g, "/").replace(/\\/g, "");
-      return result;
-    }
-
-    // Generic/IG Fallback
+    // 2. Video URL Extraction (Generic)
     const ogVideoMatch = html.match(/<meta property="og:video" content="([^"]+)"/i);
     if (ogVideoMatch && ogVideoMatch[1]) {
       result.url = ogVideoMatch[1].replace(/&amp;/g, '&');
       return result;
+    }
+    
+    // Try generic mp4 match if no meta tag
+    const mp4Match = html.match(/https?:\/\/[^"']+\.mp4/i);
+    if (mp4Match) {
+        result.url = mp4Match[0];
+        return result;
     }
 
     throw new Error("Could not find video stream. Please check if the link is valid.");
@@ -221,6 +292,7 @@ class GenericParser implements VideoParser {
 
 // Registry
 const parsers: VideoParser[] = [
+  new XiaohongshuParser(), // Add new parser
   new InstagramParser(),
   new BilibiliParser(),
   new GenericParser() // Must be last
@@ -236,7 +308,6 @@ export async function parseVideoUrl(inputUrl: string): Promise<VideoMetadata> {
   targetUrl = targetUrl.replace(/[.,;:!)]+$/, "");
 
   // Generate the canonical storage key from the target URL (the share link)
-  // This happens BEFORE parsing resolves it to a CDN link
   const storageKey = generateStorageKey(targetUrl);
 
   for (const parser of parsers) {
@@ -248,7 +319,6 @@ export async function parseVideoUrl(inputUrl: string): Promise<VideoMetadata> {
         return metadata;
       } catch (e: any) {
         console.warn(`Parser ${parser.name} failed:`, e);
-        // If it was a specific parser (not generic), allow falling back to Generic?
         if (parser.name !== 'Generic') {
           continue;
         }

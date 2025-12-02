@@ -1,11 +1,11 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   ChevronLeft, Wand2, Settings, 
-  Box, BrainCircuit, Clipboard, Layers
+  Box, BrainCircuit, Clipboard, Layers, Activity, Check, AlertCircle, Loader2, X
 } from 'lucide-react';
 import { Button } from '../Button';
-import { ProviderType } from '../../services/llm';
+import { ProviderType, createLLMProvider } from '../../services/llm';
 import { SocialPlatformStrategy } from '../../services/strategies';
 
 interface HeaderProps {
@@ -31,6 +31,12 @@ export const Header: React.FC<HeaderProps> = ({
   useBatch, setUseBatch, apiKey, setApiKey
 }) => {
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
+  
+  // Test connection states
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
+
+  const isKeyMissing = !apiKey || apiKey.trim() === '';
 
   const handlePasteApiKey = async () => {
     try {
@@ -42,6 +48,38 @@ export const Header: React.FC<HeaderProps> = ({
         apiKeyInputRef.current.select();
       }
       alert("请按 Ctrl+V 粘贴您的 API Key。");
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!apiKey) {
+      setTestStatus('error');
+      setTestMessage('请先输入 API Key');
+      return;
+    }
+
+    setTestStatus('testing');
+    setTestMessage('');
+
+    try {
+      // Create a temporary provider instance with current settings
+      const tempProvider = createLLMProvider(provider, apiKey, baseUrl);
+      await tempProvider.testConnection();
+      setTestStatus('success');
+      setTestMessage('连接成功');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        if (testStatus === 'success') { // Check if still success (user didn't click again)
+           setTestStatus('idle');
+           setTestMessage('');
+        }
+      }, 3000);
+      
+    } catch (error: any) {
+      console.error("Test connection error:", error);
+      setTestStatus('error');
+      setTestMessage(error.message || '连接失败，请检查 Base URL 或 Key');
     }
   };
 
@@ -71,17 +109,37 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 lg:gap-3 flex-1 justify-end min-w-0">
+        
+        {/* API Key Warning Prompt */}
+        {isKeyMissing && !showSettings && (
+           <div className="flex items-center gap-1.5 animate-pulse mr-2">
+               <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+               <span className="text-xs font-bold text-red-500 hidden sm:inline">
+                   请配置 API Key
+               </span>
+           </div>
+        )}
+
         <Button 
           variant="ghost" 
           size="icon" 
-          className={`w-8 h-8 ${showSettings ? 'text-indigo-400 bg-slate-800' : 'text-slate-400'}`}
+          className={`w-8 h-8 transition-all duration-300 ${
+              isKeyMissing 
+                ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]' 
+                : showSettings 
+                    ? 'text-indigo-400 bg-slate-800' 
+                    : 'text-slate-400 hover:text-white'
+          }`}
           onClick={() => setShowSettings(!showSettings)}
+          title={isKeyMissing ? "点击设置 API Key" : "设置"}
         >
-          <Settings className="w-4 h-4" />
+          <Settings className={`w-4 h-4 ${isKeyMissing ? 'animate-[spin_3s_linear_infinite]' : ''}`} />
         </Button>
 
         {showSettings && (
-          <div className="absolute top-16 right-4 lg:right-40 z-50 bg-slate-900 border border-slate-700 shadow-xl rounded-xl p-4 w-72 animate-in slide-in-from-top-2">
+          <div className="absolute top-16 right-4 lg:right-10 z-50 bg-slate-900 border border-slate-700 shadow-xl rounded-xl p-4 w-80 animate-in slide-in-from-top-2">
+            
+            {/* 1. Provider Selection */}
             <div className="mb-4">
               <label className="text-xs font-semibold text-slate-400 block mb-2 flex items-center gap-1">
                 <Box className="w-3 h-3" /> 服务提供商
@@ -90,7 +148,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setProvider('google');
-                    setBaseUrl("https://generativelanguage.googleapis.com/v1beta");
+                    setBaseUrl(""); 
+                    setTestStatus('idle');
+                    setTestMessage('');
                   }}
                   className={`text-xs py-1.5 rounded-md transition-all ${provider === 'google' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
@@ -99,7 +159,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setProvider('openai');
-                    setBaseUrl("https://api.openai.com/v1");
+                    setBaseUrl(""); // Reset to empty string
+                    setTestStatus('idle');
+                    setTestMessage('');
                   }}
                   className={`text-xs py-1.5 rounded-md transition-all ${provider === 'openai' ? 'bg-green-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
@@ -108,73 +170,133 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="text-xs text-slate-400 block mb-1">API Base URL (Optional)</label>
-              <input
-                type="text"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder={provider === 'google' ? "https://generativelanguage.googleapis.com/v1beta" : "https://api.openai.com/v1"}
-                className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
-              />
+            {/* 2. Connection Settings */}
+            <div className="mb-4 bg-slate-950/50 p-3 rounded-lg border border-slate-800">
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-slate-400">API Base URL (可选)</label>
+                    {baseUrl && (
+                      <button onClick={() => setBaseUrl("")} className="text-[10px] text-slate-500 hover:text-white">
+                        <X className="w-3 h-3 inline" /> 清除
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => {
+                        setBaseUrl(e.target.value);
+                        setTestStatus('idle'); // Reset test status on change
+                    }}
+                    placeholder={provider === 'google' ? "默认: https://generativelanguage.googleapis.com" : "默认: https://api.openai.com/v1"}
+                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white focus:border-indigo-500 focus:outline-none placeholder-slate-600"
+                  />
+                  <p className="text-[10px] text-slate-600 mt-1">留空则使用官方默认地址</p>
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-xs text-slate-400 block mb-1">API Key</label>
+                  <div className="flex items-center gap-2 bg-slate-800 p-1 rounded border border-slate-700 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-500">
+                      <input
+                        ref={apiKeyInputRef}
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => {
+                            setApiKey(e.target.value);
+                            setTestStatus('idle');
+                        }}
+                        placeholder="sk-..."
+                        className="bg-transparent border-none text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-0 w-full px-2 py-1"
+                      />
+                       <button 
+                        onClick={handlePasteApiKey}
+                        className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+                        title="粘贴 API Key"
+                       >
+                        <Clipboard className="w-3 h-3" />
+                       </button>
+                  </div>
+                </div>
+
+                {/* Test Connection Button */}
+                <div className="mt-2">
+                   <Button 
+                      onClick={handleTestConnection} 
+                      size="sm" 
+                      disabled={testStatus === 'testing' || !apiKey}
+                      className={`w-full text-xs h-8 ${testStatus === 'success' ? 'bg-green-600 hover:bg-green-500' : testStatus === 'error' ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-800 hover:bg-slate-700'}`}
+                   >
+                      {testStatus === 'testing' ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            测试中...
+                          </>
+                      ) : testStatus === 'success' ? (
+                          <>
+                            <Check className="w-3 h-3 mr-2" />
+                            连接成功
+                          </>
+                      ) : testStatus === 'error' ? (
+                          <>
+                            <AlertCircle className="w-3 h-3 mr-2" />
+                            测试失败
+                          </>
+                      ) : (
+                          <>
+                            <Activity className="w-3 h-3 mr-2" />
+                            测试连接
+                          </>
+                      )}
+                   </Button>
+                   {testMessage && (
+                       <p className={`text-[10px] mt-2 text-center ${testStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                           {testMessage}
+                       </p>
+                   )}
+                </div>
             </div>
             
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
-                  <BrainCircuit className="w-3 h-3 text-indigo-400" />
-                  深度思考 (Deep Thinking)
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  {provider === 'google' ? 'Gemini 思考模式' : 'OpenAI Reasoning (o1)'}
-                </span>
-              </div>
-              <div 
-                className={`w-10 h-5 rounded-full cursor-pointer relative transition-colors ${useThinking ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                onClick={() => setUseThinking(!useThinking)}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useThinking ? 'translate-x-5' : 'translate-x-0'}`}></div>
-              </div>
-            </div>
+            {/* 3. Advanced Settings */}
+            <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                    <BrainCircuit className="w-3 h-3 text-indigo-400" />
+                    深度思考 (Deep Thinking)
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                    {provider === 'google' ? 'Gemini 思考模式' : 'OpenAI Reasoning (o1)'}
+                    </span>
+                </div>
+                <div 
+                    className={`w-10 h-5 rounded-full cursor-pointer relative transition-colors ${useThinking ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                    onClick={() => setUseThinking(!useThinking)}
+                >
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useThinking ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                </div>
+                </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-indigo-400" />
-                  批量生成模式 (Batch)
-                </span>
-                <span className="text-[10px] text-slate-500 max-w-[180px] leading-tight mt-0.5">
-                  启用后使用 Batch API 节省成本 (较慢)。<br/>关闭则并发请求 (较快，消耗 Quota)。
-                </span>
-              </div>
-              <div 
-                className={`w-10 h-5 rounded-full cursor-pointer relative transition-colors shrink-0 ${useBatch ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                onClick={() => setUseBatch(!useBatch)}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useBatch ? 'translate-x-5' : 'translate-x-0'}`}></div>
-              </div>
+                <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-indigo-400" />
+                    批量生成模式 (Batch)
+                    </span>
+                    <span className="text-[10px] text-slate-500 max-w-[180px] leading-tight mt-0.5">
+                    启用后使用 Batch API 节省成本 (较慢)。<br/>关闭则并发请求 (较快，消耗 Quota)。
+                    </span>
+                </div>
+                <div 
+                    className={`w-10 h-5 rounded-full cursor-pointer relative transition-colors shrink-0 ${useBatch ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                    onClick={() => setUseBatch(!useBatch)}
+                >
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${useBatch ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                </div>
+                </div>
             </div>
 
           </div>
         )}
-
-        <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-lg border border-slate-700 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all max-w-[120px] lg:max-w-[220px]">
-          <input
-            ref={apiKeyInputRef}
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="API Key..."
-            className="bg-transparent border-none text-[10px] lg:text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-0 w-full px-2"
-          />
-          <button 
-            onClick={handlePasteApiKey}
-            className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
-            title="粘贴 API Key"
-          >
-            <Clipboard className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
-          </button>
-        </div>
       </div>
     </div>
   );

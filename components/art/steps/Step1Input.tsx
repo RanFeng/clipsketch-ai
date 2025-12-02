@@ -2,14 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { ImageViewer } from '../common/ImageViewer';
 import { FrameData } from '../../../services/gemini';
-import { Film, LayoutGrid, Clock, ChevronRight } from 'lucide-react';
+import { Film, LayoutGrid, Clock, ChevronRight, MessageSquare } from 'lucide-react';
 
 interface Step1InputProps {
   isGenerating: boolean;
   frames: FrameData[];
+  stepDescriptions?: string[];
+  onUpdateStepDescription?: (index: number, text: string) => void;
 }
 
-export const Step1Input: React.FC<Step1InputProps> = ({ isGenerating, frames }) => {
+export const Step1Input: React.FC<Step1InputProps> = ({ isGenerating, frames, stepDescriptions, onUpdateStepDescription }) => {
   const [isVertical, setIsVertical] = useState(false);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -52,7 +54,11 @@ export const Step1Input: React.FC<Step1InputProps> = ({ isGenerating, frames }) 
                         关键帧预览
                     </h3>
                     <p className="text-sm text-slate-400 max-w-lg leading-relaxed pl-1">
-                        已提取 <span className="text-white font-medium">{frames.length}</span> 个关键帧。AI 将基于这些画面构建故事板。
+                        已提取 <span className="text-white font-medium">{frames.length}</span> 个关键帧。
+                        {stepDescriptions && stepDescriptions.length > 0 
+                            ? " AI 已分析步骤，您可以直接在下方编辑描述。"
+                            : " 点击左侧“分析关键步骤”让 AI 理解画面内容。"
+                        }
                     </p>
                 </div>
                 
@@ -70,55 +76,72 @@ export const Step1Input: React.FC<Step1InputProps> = ({ isGenerating, frames }) 
           {/* Adaptive Grid */}
           <div className={`grid gap-4 overflow-y-auto custom-scrollbar min-h-0 flex-1 content-start pr-2 pb-6 ${
               isVertical 
-                ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6' 
+                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5' 
                 : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4'
           }`}>
-             {frames.map((frame, idx) => (
-                <div 
-                    key={idx} 
-                    className={`relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 group hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-900/20 hover:-translate-y-1 transition-all duration-300 ${
-                        isVertical ? 'aspect-[9/16]' : 'aspect-video'
-                    }`}
-                    style={{ animation: `fadeIn 0.5s ease-out ${idx * 0.05}s backwards` }}
-                    onMouseEnter={() => setHoveredIdx(idx)}
-                    onMouseLeave={() => setHoveredIdx(null)}
-                >
-                   {/* Gradient Overlay for Text Readability */}
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-60 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none" />
-                   
-                   <img 
-                    src={frame.data} 
-                    alt={`Frame ${idx}`} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                   />
-                   
-                   {/* Timestamp Badge */}
-                   <div className="absolute top-2 left-2 z-20">
-                       <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-mono text-slate-200 border border-white/10 flex items-center gap-1.5 shadow-sm group-hover:bg-indigo-600/80 group-hover:border-indigo-500/50 transition-colors">
-                          <Clock className="w-3 h-3" />
-                          {formatTimestamp(frame.timestamp || 0)}
-                       </div>
-                   </div>
+             {frames.map((frame, idx) => {
+                const stepText = stepDescriptions?.[idx] || '';
+                const hasAnalysis = stepDescriptions && stepDescriptions.length > 0;
 
-                   {/* Frame Number Indicator (Slides in on hover) */}
-                   <div className={`absolute bottom-2 right-2 z-20 transition-all duration-300 transform ${
-                       hoveredIdx === idx ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0'
-                   }`}>
-                      <div className="flex items-center gap-1 bg-white text-black px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg">
-                        <span>#{idx + 1}</span>
-                        <ChevronRight className="w-3 h-3" />
+                return (
+                  <div key={idx} className="flex flex-col gap-2">
+                    <div 
+                        className={`relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 group hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-900/20 transition-all duration-300 ${
+                            isVertical ? 'aspect-[9/16]' : 'aspect-video'
+                        }`}
+                        onMouseEnter={() => setHoveredIdx(idx)}
+                        onMouseLeave={() => setHoveredIdx(null)}
+                    >
+                      {/* Gradient Overlay for Text Readability */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-60 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none" />
+                      
+                      <img 
+                        src={frame.data} 
+                        alt={`Frame ${idx}`} 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                      />
+                      
+                      {/* Timestamp Badge */}
+                      <div className="absolute top-2 left-2 z-20">
+                          <div className="bg-black/40 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-mono text-slate-200 border border-white/10 flex items-center gap-1.5 shadow-sm group-hover:bg-indigo-600/80 group-hover:border-indigo-500/50 transition-colors">
+                              <Clock className="w-3 h-3" />
+                              {formatTimestamp(frame.timestamp || 0)}
+                          </div>
                       </div>
-                   </div>
-                </div>
-             ))}
+
+                      {/* Frame Number Indicator */}
+                      <div className={`absolute bottom-2 right-2 z-20 transition-all duration-300 transform ${
+                          hoveredIdx === idx ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0'
+                      }`}>
+                          <div className="flex items-center gap-1 bg-white text-black px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg">
+                            <span>#{idx + 1}</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </div>
+                      </div>
+                    </div>
+
+                    {/* Step Description Input - Only shown if analysis is present or user wants to input */}
+                    {onUpdateStepDescription && (
+                        <div className={`relative transition-all duration-500 ${hasAnalysis ? 'opacity-100 translate-y-0' : 'opacity-50 grayscale'}`}>
+                            <div className="absolute top-2 left-2 pointer-events-none">
+                                <MessageSquare className={`w-3 h-3 ${stepText ? 'text-indigo-400' : 'text-slate-600'}`} />
+                            </div>
+                            <textarea
+                                value={stepText}
+                                onChange={(e) => onUpdateStepDescription(idx, e.target.value)}
+                                placeholder={hasAnalysis ? "步骤描述..." : "等待分析..."}
+                                disabled={!hasAnalysis}
+                                className={`w-full bg-slate-900/50 border border-slate-800 rounded-lg py-1.5 pl-7 pr-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none custom-scrollbar transition-colors ${
+                                    hasAnalysis ? 'hover:bg-slate-900 hover:border-slate-700' : 'cursor-not-allowed text-slate-600'
+                                }`}
+                                style={{ minHeight: '60px' }}
+                            />
+                        </div>
+                    )}
+                  </div>
+                );
+             })}
           </div>
-          
-          <style>{`
-            @keyframes fadeIn {
-              from { opacity: 0; transform: translateY(10px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
         </div>
       );
   }
