@@ -4,8 +4,14 @@ import { WorkflowStep } from '../components/art/types';
 import { Tag } from '../types';
 
 export interface ProjectState {
-  id: string; // Normalized key (e.g. xhslink.com/o/123) - PRIMARY KEY
+  id: string; // UUID - PRIMARY KEY
+  name: string; // Project Name (Editable)
   videoUrl: string; // The playable stream URL (can change over time for same ID)
+  
+  // Source Tracking for Restoration
+  sourceType: 'local' | 'web'; 
+  originalSource: string; // For web: the share link; For local: original filename (reference)
+
   lastUpdated: number;
   tags?: Tag[];
   activeStrategyId: string | null;
@@ -28,11 +34,13 @@ export interface ProjectState {
   batchJobId: string | null;
   batchStatus: 'idle' | 'pending' | 'completed' | 'failed';
   viewStep: number;
+  
+  videoBlob?: Blob; // Optional local caching
 }
 
 const DB_NAME = 'ClipSketchDB';
 const STORE_NAME = 'projects';
-const DB_VERSION = 2; // Bump version to support schema change
+const DB_VERSION = 2; // Keep at 2 for now, schema compatible
 
 export class StorageService {
   private static dbPromise: Promise<IDBDatabase> | null = null;
@@ -46,10 +54,7 @@ export class StorageService {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
         
-        // If store exists from v1, we might need to recreate it or migrate.
-        // For simplicity in this update, we'll create a new store if version changed.
         if (db.objectStoreNames.contains(STORE_NAME)) {
-          // Delete old store to apply new keyPath 'id'
           db.deleteObjectStore(STORE_NAME);
         }
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
@@ -93,12 +98,32 @@ export class StorageService {
         const request = store.get(id);
 
         request.onsuccess = () => {
-          const existing = request.result || { id };
-          // Merge updates, ensure id is preserved
-          const updated = { ...existing, ...updates, id, lastUpdated: Date.now() };
-          const putReq = store.put(updated);
-          putReq.onsuccess = () => resolve();
-          putReq.onerror = () => reject(putReq.error);
+          const existing = request.result;
+          if (existing) {
+             // Merge updates
+             const updated = { ...existing, ...updates, id, lastUpdated: Date.now() };
+             const putReq = store.put(updated);
+             putReq.onsuccess = () => resolve();
+             putReq.onerror = () => reject(putReq.error);
+          } else {
+             // Fallback for new projects created via update
+             const newProject = { 
+                 id, 
+                 name: 'New Project', 
+                 videoUrl: '', 
+                 lastUpdated: Date.now(), 
+                 sourceFrames: [],
+                 stepDescriptions: [],
+                 subPanels: [],
+                 captionOptions: [],
+                 sourceType: 'local', // Default fallback
+                 originalSource: '',
+                 ...updates 
+             } as ProjectState;
+             const putReq = store.put(newProject);
+             putReq.onsuccess = () => resolve();
+             putReq.onerror = () => reject(putReq.error);
+          }
         };
         request.onerror = () => reject(request.error);
       });
@@ -124,6 +149,28 @@ export class StorageService {
     } catch (error) {
       console.error('Failed to load project:', error);
       return null;
+    }
+  }
+
+  static async getAllProjects(): Promise<ProjectState[]> {
+    try {
+      const db = await this.getDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const results = request.result as ProjectState[];
+          // Sort by lastUpdated desc
+          results.sort((a, b) => b.lastUpdated - a.lastUpdated);
+          resolve(results);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+      return [];
     }
   }
 

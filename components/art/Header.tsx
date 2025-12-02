@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   if (targetPlatform.id === 'instagram') badgeColorClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
 
   return (
-    <div className="h-14 lg:h-16 px-4 lg:px-6 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0 gap-2 shadow-md z-10">
+    <div className="h-14 lg:h-16 px-4 lg:px-6 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0 gap-2 shadow-md z-40 relative">
       <div className="flex items-center gap-2 lg:gap-4 shrink-0">
         <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400 hover:text-white pl-0 text-xs lg:text-sm">
           <ChevronLeft className="w-4 h-4 lg:w-5 lg:h-5 mr-1" />

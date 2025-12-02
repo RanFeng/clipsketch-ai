@@ -154,22 +154,43 @@ class GenericParser implements VideoParser {
     const html = await response.text();
     let result: VideoMetadata = { url: '' };
 
-    // 1. Meta Tag Extraction
-    const titleMatch = html.match(/<meta (?:name|property)="og:title" content="([^"]+)"/i) || html.match(/<title>([^<]+)<\/title>/i);
-    if (titleMatch && titleMatch[1]) result.title = titleMatch[1];
+    // 1. Meta Tag Extraction (Robust Regex)
+    
+    // Title
+    // Try property="og:title" or name="og:title"
+    let titleMatch = html.match(/<meta[^>]+(?:name|property)=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+    // Try content="..." first
+    if (!titleMatch) {
+       titleMatch = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']og:title["']/i);
+    }
+    
+    if (titleMatch && titleMatch[1]) {
+        result.title = titleMatch[1];
+    } else {
+        // Fallback to <title> tag
+        const titleTag = html.match(/<title>([^<]+)<\/title>/i);
+        if (titleTag && titleTag[1]) result.title = titleTag[1];
+    }
 
-    const descMatch = html.match(/<meta (?:name|property)="og:description" content="([^"]+)"/i) || html.match(/<meta name="description" content="([^"]+)"/i);
+    // Description
+    let descMatch = html.match(/<meta[^>]+(?:name|property)=["'](?:og:description|description)["'][^>]+content=["']([^"']+)["']/i);
+    if (!descMatch) {
+         descMatch = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["'](?:og:description|description)["']/i);
+    }
     if (descMatch && descMatch[1]) result.content = descMatch[1];
 
-    // 2. XHS Specific JSON
+    // 2. XHS Specific JSON Logic
     if (url.includes('xiaohongshu.com') || url.includes('xhslink.com')) {
-       const jsonTitleMatch = html.match(/"title":"((?:[^"\\]|\\.)*)"/);
-       if (jsonTitleMatch && jsonTitleMatch[1]) {
-          try { result.title = JSON.parse(`"${jsonTitleMatch[1]}"`); } catch(e) {}
-       }
-       const jsonDescMatch = html.match(/"desc":"((?:[^"\\]|\\.)*)"/);
-       if (jsonDescMatch && jsonDescMatch[1]) {
-          try { result.content = JSON.parse(`"${jsonDescMatch[1]}"`); } catch(e) {}
+       // Note: We intentionally DO NOT overwrite title from JSON regex here.
+       // The regex /"title":"..."/ is too broad and often matches unrelated keys in XHS minified code.
+       // Meta tags are reliable enough for XHS titles.
+       
+       // Only try to fetch desc from JSON if meta tag failed
+       if (!result.content) {
+           const jsonDescMatch = html.match(/"desc":"((?:[^"\\]|\\.)*)"/);
+           if (jsonDescMatch && jsonDescMatch[1]) {
+              try { result.content = JSON.parse(`"${jsonDescMatch[1]}"`); } catch(e) {}
+           }
        }
     }
 
@@ -180,6 +201,7 @@ class GenericParser implements VideoParser {
       result.url = xhsVideoMatch[1];
       return result;
     }
+    
     const xhsJsonMatch = html.match(/"masterUrl":"([^"]+)"/);
     if (xhsJsonMatch && xhsJsonMatch[1]) {
       result.url = xhsJsonMatch[1].replace(/\\u002F/g, "/").replace(/\\/g, "");
