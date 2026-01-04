@@ -202,7 +202,8 @@ export const Header: React.FC<HeaderProps> = ({
                     placeholder={
                       provider === 'google' ? "默认: https://generativelanguage.googleapis.com" : 
                       provider === 'openai' ? "默认: https://api.openai.com/v1" : 
-                      "默认: https://api.siliconflow.cn/v1"
+                      provider === 'siliconflow' ? "默认: https://api.siliconflow.cn/v1" :
+                      "默认 API 地址"
                     }
                     className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white focus:border-indigo-500 focus:outline-none placeholder-slate-600"
                   />
