@@ -91,6 +91,9 @@ export async function onRequest(context: any) {
     responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     responseHeaders.set('Cache-Control', 'public, max-age=3600');
+    
+    // 移除 Content-Encoding 以避免浏览器解码错误
+    responseHeaders.delete('content-encoding');
 
     // 返回代理响应
     return new Response(response.body, {
