@@ -40,7 +40,7 @@ export class GeminiService {
           // Text generation: Kimi-K2-Thinking (advanced reasoning), Qwen series, etc.
           // Image generation: FLUX.1 family
           if (task === 'image') {
-              return 'FLUX.1-dev'; // Can also use: 'FLUX.1-pro'
+              return 'black-forest-labs/FLUX.1-schnell'; // Can also use: 'Pro/black-forest-labs/FLUX.1-schnell'
           } else {
               // Kimi-K2-Thinking: advanced reasoning model with extended context (262K)
               return 'moonshotai/Kimi-K2-Thinking';
