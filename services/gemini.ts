@@ -49,8 +49,8 @@ export class GeminiService {
       }
       // Google - Use appropriate models per task
       // Text generation: gemini-2.5-flash (latest)
-      // Image generation: gemini-2.0-flash (stable with image support)
-      return task === 'image' ? 'gemini-2.0-flash' : 'gemini-2.5-flash';
+      // Image generation: gemini-2.5-flash-preview-image (latest image generation)
+      return task === 'image' ? 'gemini-2.5-flash-preview-image' : 'gemini-2.5-flash';
   }
 
   /**

@@ -36,13 +36,13 @@ return 'FLUX.1-dev';  // ❌ 错误
 ### 3. Google Gemini 模型错误
 **问题**：用错了文本模型来生图
 
-**当前正确配置**：
+**当前正确配置**（已更新）：
 ```typescript
-// services/gemini.ts 第 53 行
-return task === 'image' ? 'gemini-2.0-flash' : 'gemini-2.5-flash';
+// services/gemini.ts 第 51-52 行
+return task === 'image' ? 'gemini-2.5-flash-preview-image' : 'gemini-2.5-flash';
 ```
 
-- `gemini-2.0-flash` → 用于**图像生成** ✅
+- `gemini-2.5-flash-preview-image` → 用于**图像生成** ✅
 - `gemini-2.5-flash` → 用于**文本生成** ✅
 
 ### 4. API Key 无效或过期
@@ -124,8 +124,9 @@ Bad Request (HTTP 400)
 3. 查看 Network → Response 了解 Google 返回的具体错误
 
 ## 最近修改
+- ✅ 2024-01-04: 更新 Google Gemini 图像生成模型从 `gemini-2.0-flash` 改为 `gemini-2.5-flash-preview-image`
 - ✅ 2024-01-04: 修复 SiliconFlow 模型从 `FLUX.1-dev` 改为 `black-forest-labs/FLUX.1-schnell`
-- ✅ 详见 Git commit: `Fix SiliconFlow image generation model to black-forest-labs/FLUX.1-schnell`
+- ✅ 详见 Git commits
 
 ## 需要帮助？
 1. 查看浏览器 Network 选项卡的错误响应体
