@@ -37,13 +37,14 @@ export class GeminiService {
       }
       if (type === 'siliconflow') {
           // SiliconFlow models: https://docs.siliconflow.cn/
-          // Text generation: Qwen series, LLaMA, etc.
+          // Text generation: Qwen3-Omni series (multimodal), Qwen2.5, etc.
           // Image generation: FLUX.1 family
           if (task === 'image') {
-              // Qwen Omni or FLUX models available on SiliconFlow
-              return 'FLUX.1-dev'; // Can also use: 'FLUX.1-pro', 'qwen-omni'
+              return 'FLUX.1-dev'; // Can also use: 'FLUX.1-pro'
           } else {
-              return 'Qwen/Qwen2.5-72B-Instruct';
+              // Qwen3-Omni-30B-A3B-Instruct: multimodal with chain-of-thought reasoning
+              return 'Qwen/Qwen3-Omni-30B-A3B-Instruct'; 
+              // Alternative: 'Qwen/Qwen3-Omni-30B-A3B-Thinking' (with explicit reasoning), 'Qwen/Qwen2.5-72B-Instruct'
           }
       }
       // Google - Use appropriate models per task
