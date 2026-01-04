@@ -147,7 +147,7 @@
 - 📖 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 完整故障排除指南
 
 **致谢**：
-本版本由 [@samqin123](https://github.com/samqin123) 与 AI 合作完成，重点修复了模型兼容性问题，改进了跨 Provider 的支持，并大幅增强了文档和调试能力。感谢 Claude AI 在问题诊断、代码审查和文档编写中的帮助。
+本版本由 [@samqin123](https://github.com/samqin123) 与 AMP cli_coding 合作完成，重点修复了模型兼容性问题，改进了跨 Provider 的支持，并大幅增强了文档和调试能力。感谢 Claude AI 在问题诊断、代码审查和文档编写中的帮助。
 
 ## 📄 许可证
 
