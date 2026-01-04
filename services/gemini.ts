@@ -35,8 +35,10 @@ export class GeminiService {
       if (type === 'openai') {
           return task === 'image' ? 'dall-e-3' : 'gpt-4o';
       }
-      // Google - Use latest available models
-      return task === 'image' ? 'gemini-2.5-flash-image-preview' : 'gemini-2.5-flash';
+      // Google - Use appropriate models per task
+      // Text generation: gemini-2.5-flash (latest)
+      // Image generation: gemini-2.0-flash (stable with image support)
+      return task === 'image' ? 'gemini-2.0-flash' : 'gemini-2.5-flash';
   }
 
   /**
