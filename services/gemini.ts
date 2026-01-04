@@ -35,8 +35,8 @@ export class GeminiService {
       if (type === 'openai') {
           return task === 'image' ? 'dall-e-3' : 'gpt-4o';
       }
-      // Google
-      return task === 'image' ? 'gemini-3-pro-image-preview' : 'gemini-3-pro-preview';
+      // Google - Use latest available models
+      return task === 'image' ? 'gemini-2.5-flash-image-preview' : 'gemini-2.5-flash';
   }
 
   /**
