@@ -39,10 +39,13 @@ export async function onRequest(context: any) {
     const allowedDomains = [
       'bilibili.com',
       'b23.tv',
+      'bilivideo.com',
+      'hdslb.com',
       'xiaohongshu.com',
       'xhslink.com',
       'instagram.com',
       'instagr.am',
+      'cdninstagram.com',
       'api.mir6.com',
       'api.cobalt.tools',
       'sns-video-bd.xhscdn.com',
