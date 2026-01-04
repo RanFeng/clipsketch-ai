@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "include": ["/api/proxy*"],
+  "exclude": [],
+  "routes": [
+    {
+      "pattern": "/api/proxy*",
+      "methods": ["GET", "POST", "OPTIONS"],
+      "function": "proxy"
+    }
+  ]
+}

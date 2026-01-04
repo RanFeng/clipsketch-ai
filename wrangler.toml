@@ -1,0 +1,14 @@
+name = "clipsketch-proxy"
+type = "javascript"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "clipsketch-proxy-prod"
+routes = [
+  { pattern = "*/api/proxy*", zone_name = "eo-edgefunctions7.com" }
+]
+
+[build]
+command = "echo 'skipping build'"
+cwd = "./functions"
+main = "proxy.ts"
