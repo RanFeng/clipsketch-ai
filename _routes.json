@@ -6,7 +6,8 @@
     {
       "pattern": "/api/proxy*",
       "methods": ["GET", "POST", "OPTIONS"],
-      "function": "proxy"
+      "function": "proxy",
+      "path": "/api/proxy"
     }
   ]
 }
