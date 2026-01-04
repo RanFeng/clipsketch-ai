@@ -35,6 +35,17 @@ export class GeminiService {
       if (type === 'openai') {
           return task === 'image' ? 'dall-e-3' : 'gpt-4o';
       }
+      if (type === 'siliconflow') {
+          // SiliconFlow models: https://docs.siliconflow.cn/
+          // Text generation: Qwen series, LLaMA, etc.
+          // Image generation: FLUX.1 family
+          if (task === 'image') {
+              // Qwen Omni or FLUX models available on SiliconFlow
+              return 'FLUX.1-dev'; // Can also use: 'FLUX.1-pro', 'qwen-omni'
+          } else {
+              return 'Qwen/Qwen2.5-72B-Instruct';
+          }
+      }
       // Google - Use appropriate models per task
       // Text generation: gemini-2.5-flash (latest)
       // Image generation: gemini-2.0-flash (stable with image support)
