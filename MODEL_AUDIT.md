@@ -13,7 +13,7 @@ const model = this.getModelName(providerType, 'image');
 ```
 - ✅ 使用 `'image'` task
 - 对应模型：
-  - Google: `gemini-2.5-flash-preview-image`
+  - Google: `gemini-2.5-flash-image`
   - SiliconFlow: `black-forest-labs/FLUX.1-schnell`
   - OpenAI: `dall-e-3`
 
@@ -66,11 +66,11 @@ const model = this.getModelName(providerType, 'image');
 ```typescript
 // services/gemini.ts L34-53
 if (type === 'google') {
-    return task === 'image' ? 'gemini-2.5-flash-preview-image' : 'gemini-2.5-flash';
+    return task === 'image' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash';
 }
 ```
 ✅ **验证通过**：
-- 图像生成：`gemini-2.5-flash-preview-image` ← 最新的图像生成专用模型
+- 图像生成：`gemini-2.5-flash-image` ← 支持 generateContent API 的图像生成模型
 - 文本生成：`gemini-2.5-flash` ← 最新的文本生成模型
 
 ### SiliconFlow
@@ -102,7 +102,7 @@ if (type === 'openai') {
 ## 近期修改记录
 
 ### 2024-01-04
-- ✅ 更新 Google Gemini 图像生成：`gemini-2.0-flash` → `gemini-2.5-flash-preview-image`
+- ✅ 更新 Google Gemini 图像生成：`gemini-2.0-flash` → `gemini-2.5-flash-image`（修复 404 错误）
 - ✅ 修复 SiliconFlow 图像生成：`FLUX.1-dev` → `black-forest-labs/FLUX.1-schnell`
 - ✅ 所有后续步骤自动继承新模型配置（通过 `getModelName()` 方法）
 
