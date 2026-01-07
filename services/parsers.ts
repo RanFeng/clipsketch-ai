@@ -7,7 +7,9 @@ export interface VideoParser {
   parse(url: string): Promise<VideoMetadata>;
 }
 
-const PROXY_BASE = 'https://cros.alphaxiv.cn/';
+// 改用 EdgeOne Functions/Pages Function 作为代理
+// 本地开发时映射到 /api/proxy，生产时 EdgeOne 会自动处理
+const PROXY_BASE = '/api/proxy?url=';
 
 /**
  * Generates a normalized storage key from the source URL.

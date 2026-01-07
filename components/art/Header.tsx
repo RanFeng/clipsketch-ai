@@ -144,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
               <label className="text-xs font-semibold text-slate-400 block mb-2 flex items-center gap-1">
                 <Box className="w-3 h-3" /> 服务提供商
               </label>
-              <div className="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-lg">
+              <div className="grid grid-cols-3 gap-2 bg-slate-800 p-1 rounded-lg">
                 <button
                   onClick={() => {
                     setProvider('google');
@@ -154,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className={`text-xs py-1.5 rounded-md transition-all ${provider === 'google' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  Google Gemini
+                  Gemini
                 </button>
                 <button
                   onClick={() => {
@@ -166,6 +166,17 @@ export const Header: React.FC<HeaderProps> = ({
                   className={`text-xs py-1.5 rounded-md transition-all ${provider === 'openai' ? 'bg-green-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   OpenAI
+                </button>
+                <button
+                  onClick={() => {
+                    setProvider('siliconflow');
+                    setBaseUrl("https://api.siliconflow.cn/v1");
+                    setTestStatus('idle');
+                    setTestMessage('');
+                  }}
+                  className={`text-xs py-1.5 rounded-md transition-all ${provider === 'siliconflow' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  SiliconFlow
                 </button>
               </div>
             </div>
@@ -188,7 +199,12 @@ export const Header: React.FC<HeaderProps> = ({
                         setBaseUrl(e.target.value);
                         setTestStatus('idle'); // Reset test status on change
                     }}
-                    placeholder={provider === 'google' ? "默认: https://generativelanguage.googleapis.com" : "默认: https://api.openai.com/v1"}
+                    placeholder={
+                      provider === 'google' ? "默认: https://generativelanguage.googleapis.com" : 
+                      provider === 'openai' ? "默认: https://api.openai.com/v1" : 
+                      provider === 'siliconflow' ? "默认: https://api.siliconflow.cn/v1" :
+                      "默认 API 地址"
+                    }
                     className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white focus:border-indigo-500 focus:outline-none placeholder-slate-600"
                   />
                   <p className="text-[10px] text-slate-600 mt-1">留空则使用官方默认地址</p>

@@ -3,57 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ClipSketch AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* Custom range input styling for better UX */
-      input[type=range] {
-        -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
-        width: 100%; /* Specific width is required for Firefox. */
-        background: transparent; /* Otherwise white in Chrome */
-      }
-
-      input[type=range]::-webkit-slider-thumb {
-        -webkit-appearance: none;
-      }
-
-      input[type=range]:focus {
-        outline: none; /* Removes the blue border. You should probably do some kind of focus styling for accessibility reasons though. */
-      }
-
-      input[type=range]::-ms-track {
-        width: 100%;
-        cursor: pointer;
-
-        /* Hides the slider so custom styles can be added */
-        background: transparent; 
-        border-color: transparent;
-        color: transparent;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "jszip": "https://esm.run/jszip",
-    "@google/genai": "https://esm.run/@google/genai",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <title>ClipSketch AI - AI 驱动的视频创作工具</title>
+    <!-- 关键：移除 Tailwind CDN，改用构建时的 CSS（在 index.tsx 中导入 index.css） -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  </head>
   <body class="bg-slate-950 text-slate-100 antialiased h-screen overflow-hidden">
     <div id="root" class="h-full"></div>
-    <script>
-      window.va = window.va || function () { (window.va.q = window.va.q || []).push(arguments); };
-    </script>
-    <script defer src="/_vercel/insights/script.js"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <!-- 使用模块脚本加载应用，支持现代构建工具 -->
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

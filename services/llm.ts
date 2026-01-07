@@ -34,7 +34,7 @@ export interface LLMProvider {
   testConnection(): Promise<boolean>;
 }
 
-export type ProviderType = 'google' | 'openai';
+export type ProviderType = 'google' | 'openai' | 'siliconflow';
 
 export class GoogleProvider implements LLMProvider {
   private ai: GoogleGenAI;
@@ -459,11 +459,161 @@ export class OpenAIProvider implements LLMProvider {
           images: [`data:image/png;base64,${b64}`]
       };
   }
-}
+  }
 
-export function createLLMProvider(type: ProviderType, apiKey: string, baseUrl: string): LLMProvider {
+  export class SiliconFlowProvider implements LLMProvider {
+  private static jobs = new Map<string, Promise<LLMResponse[]>>();
+
+  constructor(private apiKey: string, private baseUrl: string) {}
+
+  private getEndpoint(): string {
+   let endpoint = this.baseUrl.trim() || "https://api.siliconflow.cn/v1";
+   while (endpoint.endsWith('/')) {
+     endpoint = endpoint.slice(0, -1);
+   }
+   return endpoint;
+  }
+
+  async testConnection(): Promise<boolean> {
+   try {
+     const url = `${this.getEndpoint()}/models`;
+     const response = await fetch(url, {
+       headers: { 'Authorization': `Bearer ${this.apiKey}` }
+     });
+     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+     return true;
+   } catch (e) {
+     console.error("SiliconFlow connection test failed:", e);
+     throw e;
+   }
+  }
+
+  async generateContent(model: string, messages: LLMMessage[], config: LLMConfig = {}): Promise<LLMResponse> {
+   if (model.toLowerCase().includes('flux') || model.toLowerCase().includes('image')) {
+     return this.generateImage(model, messages);
+   } else {
+     return this.generateText(model, messages, config);
+   }
+  }
+
+  async generateContentBatch(model: string, batchMessages: LLMMessage[][], config: LLMConfig = {}): Promise<string> {
+   const jobId = `job_siliconflow_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+   const promise = Promise.all(
+     batchMessages.map(messages => this.generateContent(model, messages, config))
+   );
+   SiliconFlowProvider.jobs.set(jobId, promise);
+   return jobId;
+  }
+
+  async getBatchStatus(jobId: string): Promise<BatchStatusResponse> {
+   const jobPromise = SiliconFlowProvider.jobs.get(jobId);
+   if (!jobPromise) {
+     return { status: 'failed', error: "Job not found" };
+   }
+
+   try {
+     const results = await jobPromise;
+     return { status: 'completed', results };
+   } catch (e: any) {
+     return { status: 'failed', error: e.message };
+   }
+  }
+
+  private async generateText(model: string, messages: LLMMessage[], config: LLMConfig): Promise<LLMResponse> {
+   const url = `${this.getEndpoint()}/chat/completions`;
+
+   const body: any = {
+     model: model,
+     messages: messages,
+     stream: false
+   };
+
+   if (config.responseMimeType === 'application/json') {
+     body.response_format = { type: "json_object" };
+   }
+
+   const response = await fetch(url, {
+     method: 'POST',
+     headers: {
+       'Content-Type': 'application/json',
+       'Authorization': `Bearer ${this.apiKey}`
+     },
+     body: JSON.stringify(body)
+   });
+
+   if (!response.ok) {
+     const err = await response.json().catch(() => ({}));
+     throw new Error(`SiliconFlow API Error: ${response.status} - ${err.error?.message || response.statusText}`);
+   }
+
+   const json = await response.json();
+   return { text: json.choices[0]?.message?.content || '' };
+  }
+
+  private async generateImage(model: string, messages: LLMMessage[]): Promise<LLMResponse> {
+   const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+   let prompt = "Generate an image.";
+
+   if (lastUserMessage) {
+     if (typeof lastUserMessage.content === 'string') {
+       prompt = lastUserMessage.content;
+     } else if (Array.isArray(lastUserMessage.content)) {
+       const textPart = lastUserMessage.content.find(p => p.type === 'text');
+       if (textPart && 'text' in textPart) {
+         prompt = textPart.text;
+       }
+     }
+   }
+
+   prompt = prompt.substring(0, 4000);
+
+   const url = `${this.getEndpoint()}/images/generations`;
+   const response = await fetch(url, {
+     method: 'POST',
+     headers: {
+       'Content-Type': 'application/json',
+       'Authorization': `Bearer ${this.apiKey}`
+     },
+     body: JSON.stringify({
+       model: model,
+       prompt: prompt,
+       num_inference_steps: 30,
+       guidance_scale: 7.5,
+       image_size: "1024x1024"
+     })
+   });
+
+   if (!response.ok) {
+     const err = await response.json().catch(() => ({}));
+     throw new Error(`SiliconFlow Image Error: ${response.status} - ${err.error?.message || response.statusText}`);
+   }
+
+   const json = await response.json();
+   const imageUrl = json.images?.[0];
+
+   if (!imageUrl) throw new Error("No image data returned from SiliconFlow");
+
+   // Fetch the image and convert to base64
+   const imgResponse = await fetch(imageUrl);
+   const blob = await imgResponse.blob();
+   const base64 = await new Promise<string>((resolve) => {
+     const reader = new FileReader();
+     reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+     reader.readAsDataURL(blob);
+   });
+
+   return {
+     text: "Image generated via SiliconFlow",
+     images: [`data:image/png;base64,${base64}`]
+   };
+  }
+  }
+
+  export function createLLMProvider(type: ProviderType, apiKey: string, baseUrl: string): LLMProvider {
   if (type === 'openai') {
-    return new OpenAIProvider(apiKey, baseUrl);
+   return new OpenAIProvider(apiKey, baseUrl);
+  } else if (type === 'siliconflow') {
+   return new SiliconFlowProvider(apiKey, baseUrl);
   }
   return new GoogleProvider(apiKey, baseUrl);
-}
+  }

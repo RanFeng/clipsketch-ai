@@ -35,8 +35,22 @@ export class GeminiService {
       if (type === 'openai') {
           return task === 'image' ? 'dall-e-3' : 'gpt-4o';
       }
-      // Google
-      return task === 'image' ? 'gemini-3-pro-image-preview' : 'gemini-3-pro-preview';
+      if (type === 'siliconflow') {
+          // SiliconFlow models: https://docs.siliconflow.cn/
+          // Text generation: Kimi-K2-Thinking (advanced reasoning), Qwen series, etc.
+          // Image generation: FLUX.1 family
+          if (task === 'image') {
+              return 'black-forest-labs/FLUX.1-schnell'; // Can also use: 'Pro/black-forest-labs/FLUX.1-schnell'
+          } else {
+              // Kimi-K2-Thinking: advanced reasoning model with extended context (262K)
+              return 'moonshotai/Kimi-K2-Thinking';
+              // Alternatives: 'moonshotai/Kimi-K2-Instruct', 'Qwen/Qwen3-Omni-30B-A3B-Instruct', 'Qwen/Qwen2.5-72B-Instruct'
+          }
+      }
+      // Google - Use appropriate models per task
+      // Text generation: gemini-2.5-flash (latest)
+      // Image generation: gemini-2.5-flash-image (image generation with generateContent)
+      return task === 'image' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash';
   }
 
   /**

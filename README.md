@@ -44,9 +44,12 @@
 *   **快捷键打点**：按下 `T` 键即可快速标记。
 *   **数据导出**：支持导出 TXT 格式的时间轴标签，或将标记帧打包导出为 ZIP 图片包。
 
-### 🎨 AI 艺术工作室 (Powered by Gemini)
-*   **智能绘图**：利用 `gemini-3-pro-image-preview` 模型，将多个标记帧整合成一张连贯的、可爱手绘风格的故事板（Storyboard）。
-*   **社交文案生成**：基于视觉内容，利用 `gemini-3-pro-preview` 自动生成 **3种不同风格** 的种草文案（情感故事型、干货教程型、短小精悍型）。
+### 🎨 AI 艺术工作室 (多模型支持)
+*   **智能绘图**：支持多个 AI 提供商：
+    - **Google Gemini** (`gemini-2.5-flash-image`)：高质量图像生成
+    - **SiliconFlow** (`black-forest-labs/FLUX.1-schnell`)：快速经济的生图方案
+    - **OpenAI** (`dall-e-3`)：DALL-E 3 专业级图像
+*   **社交文案生成**：基于视觉内容，自动生成 **3种不同风格** 的种草文案（情感故事型、干货教程型、短小精悍型）。
 *   **角色融合**：上传自定义角色/头像，AI 自动将其融入到故事板场景中。
 *   **封面生成**：基于精选文案和原始画面，生成高品质的竖屏视频封面。
 *   **批量精修**：支持批量生成和优化分镜（可配置使用 Batch API 以节省成本）。
@@ -119,8 +122,32 @@
 
 ## ⚠️ 注意事项
 
-*   **API 权限**: 使用 AI 绘图功能需要您的 API Key 有权访问 `gemini-3-pro-image-preview` 模型。如果遇到 403 错误，请检查您的 Google Cloud 项目设置。
+*   **API 权限**: 使用 AI 绘图功能需要您的 API Key 有权访问相应的图像生成模型。如果遇到错误，请查看 [DEBUG_IMAGE_GENERATION.md](DEBUG_IMAGE_GENERATION.md) 进行诊断。
 *   **跨域播放**: 为了支持外部视频链接播放和截图，本项目使用了特定的代理策略和 `referrerPolicy="no-referrer"`。
+
+## 🔄 最近更新
+
+### v1.1.0 - 多模型支持 + 稳定性修复 (2024-01-04)
+
+**功能增强**：
+- ✅ **多模型支持**：除了 Google Gemini，现已支持 SiliconFlow 和 OpenAI
+  - SiliconFlow 使用 `black-forest-labs/FLUX.1-schnell`（快速高效）
+  - OpenAI 使用 `dall-e-3`（专业级质量）
+- ✅ **浏览器配置**：用户可在 UI 中动态配置 Provider、API Key 和 Base URL
+- ✅ **批量处理增强**：改进了批量生成工作流和任务管理
+
+**Bug 修复**：
+- 🐛 修复 Google Gemini 图像生成模型从 `gemini-2.0-flash` 到 `gemini-2.5-flash-image`
+- 🐛 修复 SiliconFlow 图像生成模型到正确的 `black-forest-labs/FLUX.1-schnell`
+- 🐛 所有生成步骤（故事板、角色融合、分镜精修、封面等）都已验证并使用正确的模型
+
+**文档新增**：
+- 📖 [DEBUG_IMAGE_GENERATION.md](DEBUG_IMAGE_GENERATION.md) - 图像生成问题诊断指南
+- 📖 [MODEL_AUDIT.md](MODEL_AUDIT.md) - 模型配置审计报告
+- 📖 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 完整故障排除指南
+
+**致谢**：
+本版本由 [@samqin123](https://github.com/samqin123) 与 AMP cli_coding 合作完成，重点修复了模型兼容性问题，改进了跨 Provider 的支持，并大幅增强了文档和调试能力。感谢 Claude AI 在问题诊断、代码审查和文档编写中的帮助。
 
 ## 📄 许可证
 
